@@ -18,14 +18,31 @@ _|_|_|_|_|    _|_|    _|      _|  _|_|_|  _|      _|
    ----------- APK PAYLOAD GENERATOR -----------
 $normal 
 "
+
 }      
 function setup() {
     ascii
     pkg install nala git wget curl -y 
-    wget https://github.com/gushmazuko/metasploit_in_termux/raw/master/metasploit.sh
-    chmod +x metasploit.sh
-    ./metasploit.sh
-    rm metasploit.sh
+    if ! command -v msfconsole &> /dev/null
+	then
+		echo "$orange Metasploit not found. 
+Either install it manually or press 'Y' to continue.
+Do You want to install it? $normal"
+		read -rp "[?] Select [Y/n]> : " answer_1
+        clear
+            case "$answer_1" in
+                Y* | y*) echo "Installating metasploit."
+                wget https://github.com/gushmazuko/metasploit_in_termux/raw/master/metasploit.sh
+                chmod +x metasploit.sh
+                ./metasploit.sh
+                rm metasploit.sh            
+                ;;
+            esac
+            
+	else
+        echo "Metasploit already present, skipping reinstallation."
+    fi
+
     clear
     ascii
     nala install apktool aapt openjdk-17 apksigner -y
