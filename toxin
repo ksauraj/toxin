@@ -122,6 +122,7 @@ function main() {
             ;;
             3*)
                 setup
+            ;;
             4*)
                 update
             ;;
