@@ -17,6 +17,7 @@ pkg install curl
 ```
 ### Next download and run tool.
 ```
+rm toxin > /dev/null 2>&1 && rm $PREFIX/bin/toxin > /dev/null 2>&1 #clean pre existing sruffs.
 curl -s https://raw.githubusercontent.com/noobyysauraj/toxin/master/toxin -o toxin
 mv toxin $PREFIX/bin 
 chmod +x $PREFIX/bin/toxin

