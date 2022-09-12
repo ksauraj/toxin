@@ -18,10 +18,7 @@ chmod +x toxin
 ./toxin
 ```
 ### Usage
->    [1] - Generate Payload
->    [2] - Start Listener                                    
->    [3] - Start Setup
->    [q] - Quit
+![Usage Image](https://github.com/noobyysauraj/toxin/blob/master/images/usage.jpg?raw=true)
 `[NOTE] Once tools installed, run setup first.`
 
 ### Use at your own responsibilities.
