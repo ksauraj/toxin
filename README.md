@@ -1,6 +1,6 @@
 toxin (termux)
 ============
->Generate and Embed payload in apk with termux.
+>Now easliy generate and embed payload inside apk with termux.
 
 ## Overview
 A simple tool written in bash for making the process of embedding payload inside apk less painful. This tool might be inspired from various other tools available on web. 
