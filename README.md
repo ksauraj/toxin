@@ -1,8 +1,12 @@
 toxin (termux)
 ============
+>Generate and Embed payload in apk with termux.
 
 ## Overview
-A simple tool written in bash for making the process of embedding payload inside apk more easier in termux. The tool might be inspired from various tools available on web. This tool will make your life easier for embedding payload inside apk as it will install metasploit if you haven't already. Also it will download all dependencies, so it will be less pain for you.
+A simple tool written in bash for making the process of embedding payload inside apk less painful. This tool might be inspired from various other tools available on web. 
+
+## WHY ?
+Embedding payload inside apk with termux was very painful earlier. So, this tool will make your life easier for embedding payload inside apk. Also it will install metasploit if you haven't already. Also it will download all dependencies for you. 
 
 ## How to get started 
 ### Do basic setup for termux.
@@ -19,8 +23,9 @@ chmod +x toxin
 ```
 ### Usage
 ![Usage Image](https://github.com/noobyysauraj/toxin/blob/master/images/usage.jpg?raw=true)
-`[NOTE] Once tools installed, run setup first.`
+>[NOTE] Once tool installed, run setup first by selecting 3rd option
 
 ### Use at your own responsibilities.
-The author does not hold any responsibility for the bad use of this tool, this tool is made only for education purpose. Remember, with great power comes great responsibility. Please Don't be Evil.
-### Tool By @Ksauraj (@noobyysauraj)
+The author does not hold any responsibility for the bad use of this tool, this tool is made only for educational purpose. Remember, with great power comes great responsibility. Please Don't be Evil.
+
+>Tool By @Ksauraj (@noobyysauraj)
