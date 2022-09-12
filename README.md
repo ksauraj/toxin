@@ -18,8 +18,9 @@ pkg install curl
 ### Next download and run tool.
 ```
 curl -s https://raw.githubusercontent.com/noobyysauraj/toxin/master/toxin -o toxin
-chmod +x toxin
-./toxin
+mv toxin $PREFIX/bin 
+chmod +x $PREFIX/bin/toxin
+toxin
 ```
 ### Usage
 ![Usage Image](https://github.com/noobyysauraj/toxin/blob/master/images/usage.jpg?raw=true)

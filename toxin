@@ -87,6 +87,14 @@ function start_handler() {
     listener_lport
     msfconsole -x "use multi/handler; set LHOST $l_host ; set LPORT $l_port ; set PAYLOAD $PAYLOAD ; exploit"
 }
+function update()
+{
+curl -s https://raw.githubusercontent.com/noobyysauraj/toxin/master/toxin -o toxin
+rm $PREFIX/bin/toxin
+mv toxin $PREFIX/bin 
+chmod +x $PREFIX/bin/toxin
+exit 0
+}
 function main() {
     clear
     ascii
@@ -94,6 +102,7 @@ function main() {
     [1] - Generate Payload
     [2] - Start Listener
     [3] - Start Setup
+    [4] - Update tool
     [q] - Quit"
     echo ""
     read -rp "    [?] Select : " answer
@@ -113,6 +122,8 @@ function main() {
             ;;
             3*)
                 setup
+            4*)
+                update
             ;;
             q*)
                 echo -e $aqua " Good Bye !!"
