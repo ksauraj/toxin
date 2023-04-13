@@ -18,16 +18,16 @@ pkg install curl
 ### Next download and run tool.
 ```
 rm toxin > /dev/null 2>&1 && rm $PREFIX/bin/toxin > /dev/null 2>&1 #clean pre existing sruffs.
-curl -s https://raw.githubusercontent.com/noobyysauraj/toxin/master/toxin -o toxin
+curl -s https://raw.githubusercontent.com/ksauraj/toxin/master/toxin -o toxin
 mv toxin $PREFIX/bin 
 chmod +x $PREFIX/bin/toxin
 toxin
 ```
 ### Usage
-![Usage Image](https://github.com/noobyysauraj/toxin/blob/master/images/usage.jpg?raw=true)
+![Usage Image](https://github.com/ksauraj/toxin/blob/master/images/usage.jpg?raw=true)
 >[NOTE] Once tool installed, run setup first by selecting 3rd option
 
 ### Use at your own responsibilities.
 The author does not hold any responsibility for the bad use of this tool, this tool is made only for educational purpose. Remember, with great power comes great responsibility. Please Don't be Evil.
 
->Tool By @Ksauraj (@noobyysauraj)
+>Tool By @Ksauraj

@@ -126,7 +126,7 @@ function start_handler() {
 }
 function update()
 {
-curl -s https://raw.githubusercontent.com/noobyysauraj/toxin/master/toxin -o toxin
+curl -s https://raw.githubusercontent.com/ksauraj/toxin/master/toxin -o toxin
 rm $PREFIX/bin/toxin
 mv toxin $PREFIX/bin 
 chmod +x $PREFIX/bin/toxin
