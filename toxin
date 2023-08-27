@@ -44,7 +44,7 @@ function setup() {
 
     clear
     ascii
-    nala install apktool aapt openjdk-17 apksigner -y
+    nala install apktool aapt openjdk-17 apksigner -y || git clone https://github.com/OnlineHacKing/TermuxTools-Installation && cd TermuxTools-Installation/Apktool-Termux && dpkg -i apktool_2.3.4_all.deb && cd ../.. && rm -rf TermuxTools-Installation
 }
 #function lhost
 function get_lhost()
