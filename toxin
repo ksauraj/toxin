@@ -91,7 +91,7 @@ CONF
 # with pkg install. Called from run_setup; sets METASPLOIT_PREFETCH_PID.
 function prefetch_metasploit_installer() {
   local installer="$PREFIX/tmp/metasploit.sh"
-  local url="https://raw.githubusercontent.com/gushmazuko/metasploit_in_termux/master/metasploit.sh"
+  local url="https://raw.githubusercontent.com/Willie169/metasploit_in_termux/refs/heads/master/metasploit.sh"
   ( curl -fsSL "$url" -o "$installer" 2>/dev/null ) &
   METASPLOIT_PREFETCH_PID=$!
 }
