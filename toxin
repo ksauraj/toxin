@@ -31,7 +31,7 @@ function display_success() {
 }
 
 function ascii_art() {
-cat << "EOF"
+cat << EOF
 ${aqua}
 _|_|_|_|_|    _|_|    _|      _|  _|_|_|  _|      _|
     _|      _|    _|    _|  _|      _|    _|_|    _|
@@ -74,77 +74,181 @@ function check_storage_permission() {
     fi
 }
 
-# Install required packages using apt
-function install_packages() {
-  local missing_pkgs=()
-  local pkgs_to_check=("git" "wget" "curl" "coreutils" "openjdk-17" "aapt" "apktool" "apksigner")
+# Configure apt to download packages in parallel (Termux default is serial).
+# Called once per setup run; idempotent — writes a conf file apt reads on next invoke.
+function tune_apt_parallelism() {
+  local conf="$PREFIX/etc/apt/apt.conf.d/99toxin-parallel"
+  [ -f "$conf" ] && return 0
+  cat > "$conf" <<'CONF'
+Acquire::Queue-Mode "host";
+Acquire::http::Pipeline-Depth "10";
+Acquire::http::No-Cache "false";
+Acquire::Languages "none";
+CONF
+}
 
-  display_info "Checking required packages..."
-  for pkg in "${pkgs_to_check[@]}"; do
-    if ! command_exists "$pkg"; then
-      # Special check for openjdk-17 as command might differ
-      if [[ "$pkg" == "openjdk-17" ]] && ! command_exists "java"; then
-         missing_pkgs+=("$pkg")
-      elif [[ "$pkg" != "openjdk-17" ]]; then
-         missing_pkgs+=("$pkg")
-      fi
-    fi
-  done
+# Prefetch the metasploit installer in the background so its download overlaps
+# with pkg install. Called from run_setup; sets METASPLOIT_PREFETCH_PID.
+function prefetch_metasploit_installer() {
+  local installer="$PREFIX/tmp/metasploit.sh"
+  local url="https://raw.githubusercontent.com/gushmazuko/metasploit_in_termux/master/metasploit.sh"
+  ( curl -fsSL "$url" -o "$installer" 2>/dev/null ) &
+  METASPLOIT_PREFETCH_PID=$!
+}
 
-  if [ ${#missing_pkgs[@]} -gt 0 ]; then
-    display_warning "Missing packages: ${missing_pkgs[*]}"
-    display_info "Attempting to install missing packages..."
-    pkg update -y || { display_error "pkg update failed."; return 1; }
-    pkg install "${missing_pkgs[@]}" -y || { display_error "Failed to install packages: ${missing_pkgs[*]}. Please install them manually."; return 1; }
-    display_success "Required packages installed."
+# Refresh package index only if it's stale (>6h old) — saves ~20-40s on repeat runs.
+function pkg_update_if_stale() {
+  local lists="$PREFIX/var/lib/apt/lists"
+  local stamp="$lists/partial"
+  # If lists dir is missing or mtime older than 6h, refresh.
+  if [ ! -d "$lists" ] || [ -z "$(find "$lists" -maxdepth 1 -type f -mmin -360 2>/dev/null | head -1)" ]; then
+    display_info "Refreshing package index..."
+    pkg update -y >/dev/null 2>&1 || { display_error "pkg update failed."; return 1; }
   else
-    display_success "All required packages are already installed."
+    display_info "Package index is fresh, skipping update."
   fi
   return 0
 }
 
-# Install Metasploit Framework using the recommended Termux method
-function install_metasploit() {
-  if command_exists msfconsole; then
-    display_success "Metasploit Framework is already installed."
+# Install required packages using apt (with parallelism enabled)
+function install_packages() {
+  local missing_pkgs=()
+  # Map "command to check" -> "package to install"
+  # openjdk-21 is pulled in as an apktool dep; we check for `java` to detect it.
+  local -A pkg_map=(
+    [git]=git
+    [wget]=wget
+    [curl]=curl
+    [tput]=ncurses-utils
+    [java]=openjdk-21
+    [aapt]=aapt
+    [apktool]=apktool
+    [apksigner]=apksigner
+  )
+
+  display_info "Checking required packages..."
+  for cmd in "${!pkg_map[@]}"; do
+    if ! command_exists "$cmd"; then
+      missing_pkgs+=("${pkg_map[$cmd]}")
+    fi
+  done
+
+  if [ ${#missing_pkgs[@]} -eq 0 ]; then
+    display_success "All required packages are already installed."
     return 0
   fi
 
-  display_warning "Metasploit Framework not found."
-  read -rp "${orange}[?] Do you want to attempt installation? (This can take a while) [Y/n]: ${normal}" answer
-  if [[ "$answer" =~ ^[Yy]$ ]] || [[ -z "$answer" ]]; then
-    display_info "Installing Metasploit..."
-    # The recommended method can change, this is common as of late 2023/early 2024
-    # Using unstable-repo is often required.
-    pkg install unstable-repo -y || { display_error "Failed to install unstable-repo."; return 1; }
-    pkg install metasploit -y || { display_error "Failed to install metasploit. Check Termux documentation for the latest method."; return 1; }
+  display_warning "Missing packages: ${missing_pkgs[*]}"
+  tune_apt_parallelism
+  pkg_update_if_stale || return 1
+  display_info "Installing packages in parallel..."
+  # -o Debug::pkgAcquire::Worker=false keeps output clean; --no-install-recommends trims fetch size
+  if ! pkg install --no-install-recommends "${missing_pkgs[@]}" -y; then
+    display_error "Failed to install packages: ${missing_pkgs[*]}. Please install them manually."
+    return 1
+  fi
+  display_success "Required packages installed."
+  return 0
+}
 
-    if command_exists msfconsole; then
-      display_success "Metasploit Framework installed successfully."
-      return 0
-    else
-      display_error "Metasploit installation command finished, but msfconsole not found. Installation may have failed."
+# Install Metasploit Framework using the community installer.
+# Termux dropped the `metasploit` package in 2021; the maintained community
+# installer at gushmazuko/metasploit_in_termux is the standard replacement.
+# If prefetch_metasploit_installer was called earlier, we wait for and reuse it.
+function install_metasploit() {
+  if command_exists msfconsole && msfvenom --list formats >/dev/null 2>&1; then
+    display_success "Metasploit Framework is already installed and functional."
+    apply_msfvenom_patches
+    return 0
+  fi
+
+  local installer="$PREFIX/tmp/metasploit.sh"
+  local installer_url="https://raw.githubusercontent.com/gushmazuko/metasploit_in_termux/master/metasploit.sh"
+
+  # If a background prefetch is running, wait for it to finish.
+  if [ -n "${METASPLOIT_PREFETCH_PID:-}" ]; then
+    display_info "Waiting for prefetched Metasploit installer..."
+    wait "$METASPLOIT_PREFETCH_PID" 2>/dev/null
+    unset METASPLOIT_PREFETCH_PID
+  fi
+
+  # Fallback: if prefetch failed or wasn't started, download now.
+  if [ ! -s "$installer" ]; then
+    display_info "Downloading Metasploit installer (gushmazuko/metasploit_in_termux)..."
+    if ! curl -fsSL "$installer_url" -o "$installer"; then
+      display_error "Failed to download the Metasploit installer."
+      display_error "Manual install: curl -LO $installer_url && bash metasploit.sh"
       return 1
     fi
+  fi
+
+  # Ruby 3.4.0 nokogiri fix (const VALUE klass -> VALUE klass in rbasic.h).
+  # Without this, nokogiri fails to compile with -Wdefault-const-init-field-unsafe
+  # and the bundle install cascades into a broken msfvenom.
+  find "$PREFIX/include" -name rbasic.h -exec \
+    sed -i 's/const VALUE klass;/VALUE klass;/g' {} + 2>/dev/null
+
+  chmod +x "$installer"
+  display_info "Running Metasploit installer... (~15-45 min, ~1.5 GB — grab a coffee)"
+  bash "$installer"
+  local exit_status=$?
+  rm -f "$installer"
+
+  if command_exists msfconsole && msfvenom --list formats >/dev/null 2>&1; then
+    display_success "Metasploit Framework installed successfully."
+    apply_msfvenom_patches
+    return 0
   else
-    display_warning "Skipping Metasploit installation."
-    return 1 # Indicate failure/skip
+    display_error "Metasploit installer finished (status: $exit_status) but msfvenom is not functional."
+    display_error "Common causes: (a) rbasic.h patch didn't stick, (b) bundle install failed on nokogiri."
+    display_error "Retry: bash $installer_url"
+    return 1
   fi
 }
 
-# Run the full setup process
+# Patch msfvenom's APK backdoor module for modern apksigner/apktool output.
+# Upstream metasploit-framework as of the maintainer's last check hasn't been updated for:
+#   1. apksigner "V2 Signer:" / "V3.0 Signer:" prefix (regex only matched "Signer #N")
+#   2. apktool 3.x removed --only-main-classes flag (now the default)
+# Both are safe idempotent seds — re-runs are no-ops.
+function apply_msfvenom_patches() {
+  local apk_rb="$PREFIX/opt/metasploit-framework/lib/msf/core/payload/apk.rb"
+  [ -f "$apk_rb" ] || return 0
+
+  # Patch 1: broaden cert DN regex to accept "V2 Signer:" / "V3.0 Signer:" formats
+  if ! grep -q 'V\\d+(?:\\.\\d+)? Signer:?' "$apk_rb"; then
+    sed -i 's|scan(/\^Signer #\\d+ certificate DN: (.\+)\$/)|scan(/^(?:Signer #\\d+\|V\\d+(?:\\.\\d+)? Signer:?) certificate DN: (.+)$/)|' "$apk_rb"
+    display_info "Patched msfvenom cert DN parser (V2/V3 apksigner)."
+  fi
+
+  # Patch 2: drop --only-main-classes flag (removed in apktool 3.x; default behavior now)
+  if grep -q "'apktool', 'd'.*'--only-main-classes'" "$apk_rb"; then
+    sed -i "s/, '--only-main-classes'//" "$apk_rb"
+    display_info "Patched msfvenom apktool invocation (apktool 3.x compat)."
+  fi
+}
+
+# Run the full setup process — non-interactive fast path.
 function run_setup() {
   ascii_art
-  display_info "Starting setup process..."
+  display_info "Starting setup (parallel mode)..."
 
-  check_storage_permission # Check this early
+  check_storage_permission
 
-  install_packages || { display_error "Package installation failed. Cannot continue."; exit 1; }
-  install_metasploit || { display_warning "Metasploit setup skipped or failed. Payload generation/listening might not work."; }
+  # Kick off metasploit installer download in the background so it overlaps
+  # with pkg install; we'll wait on it inside install_metasploit.
+  prefetch_metasploit_installer
 
-  display_success "Setup process completed. Some steps might require manual intervention if errors occurred."
-  echo ""
-  read -rp "Press Enter to return to the main menu..."
+  if ! install_packages; then
+    display_error "Package installation failed."
+    # Reap the prefetch before bailing.
+    [ -n "${METASPLOIT_PREFETCH_PID:-}" ] && kill "$METASPLOIT_PREFETCH_PID" 2>/dev/null
+    exit 1
+  fi
+
+  install_metasploit || display_warning "Metasploit setup failed; payload/listener won't work until fixed."
+
+  display_success "Setup complete."
 }
 
 # Get LHOST from user
@@ -153,13 +257,8 @@ function get_lhost() {
   while [ -z "$lhost_val" ]; do
     read -rp "${aqua}[?] Enter LHOST (Your IP Address): ${normal}" lhost_val
     if [ -z "$lhost_val" ]; then
-      display_warning "LHOST cannot be empty."
+      display_warning "LHOST cannot be empty." >&2
     fi
-    # Basic validation (not foolproof)
-    # if ! [[ "$lhost_val" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && ! [[ "$lhost_val" =~ ^[a-zA-Z0-9.-]+$ ]]; then
-    #   display_warning "Invalid LHOST format. Enter an IP address or hostname."
-    #   lhost_val=""
-    # fi
   done
   echo "$lhost_val"
 }
@@ -172,7 +271,7 @@ function get_lport() {
     if [[ "$lport_val" =~ ^[0-9]+$ ]] && [ "$lport_val" -gt 0 ] && [ "$lport_val" -le 65535 ]; then
       break
     else
-      display_warning "Invalid LPORT. Please enter a number between 1 and 65535."
+      display_warning "Invalid LPORT. Please enter a number between 1 and 65535." >&2
     fi
   done
   echo "$lport_val"
@@ -187,11 +286,11 @@ function get_original_apk() {
     # Expand ~ to home directory
     apk_path="${apk_path/#\~/$HOME}"
     if [ -z "$apk_path" ]; then
-      display_warning "APK path cannot be empty."
+      display_warning "APK path cannot be empty." >&2
     elif [ ! -f "$apk_path" ]; then
-      display_warning "File not found: $apk_path"
+      display_warning "File not found: $apk_path" >&2
     elif [[ "${apk_path##*.}" != "apk" ]]; then
-       display_warning "File does not seem to be an APK (extension is not .apk)."
+       display_warning "File does not seem to be an APK (extension is not .apk)." >&2
     else
       break
     fi
@@ -205,11 +304,11 @@ function get_output_apk_name() {
   while [ -z "$output_name" ]; do
     read -rp "${aqua}[?] Enter desired name for the OUTPUT APK (e.g., modified_app.apk): ${normal}" output_name
     if [ -z "$output_name" ]; then
-      display_warning "Output name cannot be empty."
+      display_warning "Output name cannot be empty." >&2
     elif [[ "$output_name" != *.apk ]]; then
        # Append .apk if missing
        output_name="${output_name}.apk"
-       display_info "Appending .apk extension. Output name: $output_name"
+       display_info "Appending .apk extension. Output name: $output_name" >&2
     fi
   done
   echo "$output_name"
@@ -305,7 +404,7 @@ function start_listener() {
 function update_script() {
   display_info "Attempting to update Toxin from GitHub..."
   local script_path="$PREFIX/bin/toxin"
-  local temp_script="/data/data/com.termux/files/usr/tmp/toxin.tmp"
+  local temp_script="$PREFIX/tmp/toxin.tmp"
   local repo_url="https://raw.githubusercontent.com/ksauraj/toxin/master/toxin"
 
   # Download the latest version
